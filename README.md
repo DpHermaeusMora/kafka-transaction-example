@@ -1,0 +1,1 @@
+curl -X POST localhost:3000/video -H "Content-Type: application/json" -d '{"fileName": "test", "userId": 1}'
