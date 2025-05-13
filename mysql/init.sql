@@ -23,10 +23,13 @@ CREATE TABLE IF NOT EXISTS bill (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   aggregate_type VARCHAR(50) NOT NULL,
-  aggregate_id TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  aggregate_id INT UNIQUE,
   event_type VARCHAR(50) NOT NULL,
   price INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  kafka_topic VARCHAR(100) NOT NULL DEFAULT ' ',
+  kafka_partition INT NOT NULL DEFAULT '0',
+  kafka_offset BIGINT NOT NULL DEFAULT '0',
 );
 
 GRANT ALL PRIVILEGES ON video.* TO 'mysql';

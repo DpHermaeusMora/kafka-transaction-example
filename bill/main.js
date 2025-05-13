@@ -1,97 +1,51 @@
 const { kafka, getVideoOutboxTopic } = require('../lib/kafka')
-const express = require('express')
-const app = express()
-const port = 3001
+const { billPool } = require('../lib/mysql')
+const { createPrice } = require('../lib/helper')
 
 const ns1 = kafka.consumer({ groupId: 'ns' });
+const ns2 = kafka.consumer({ groupId: 'ns' });
+const ns3 = kafka.consumer({ groupId: 'ns' });
 
-app.get('/ping', (req, res) => {
-  res.send('Consumer ok')
-})
+const createBill = async (aggregate_id, topic, partition, offset, payload) => {
+  const price = createPrice(payload.file_size)
+  console.log(`aggregate_id, topic, partition, offset, payload, price`, aggregate_id, topic, partition, offset, payload, price)
+  const con = await billPool.getConnection();
+  await con.query(`insert into bill.bill
+(user_id, aggregate_type, aggregate_id, event_type, price, kafka_topic, kafka_partition, kafka_offset)
+values
+(?, ?, ?, ?, ?, ?, ?, ?)
+on duplicate key update 
+created_at = CURRENT_TIMESTAMP`, 
+  [Number(payload.user_id), payload.aggregate_type, aggregate_id, payload.event_type, price, topic, partition, offset])
+  con.release()
+  return 'ok'
+}
 
-app.listen(port, () => {
-  const subscribeTopicDeploy = async(consumer) => {
-    await consumer.connect()
-    await consumer.subscribe({ topic: getVideoOutboxTopic(), fromBeginning: true })
-    await consumer.run({
-      eachMessage: async ({ topic, partition, message }) => {
-        console.log({
-          topic,
-          partition,
-          offset: message.offset,
-          value: message.value.toString(),
+
+/**
+ * @param { Consumer } consumer 
+ */
+const subscribe = async(consumer) => {
+  await consumer.connect()
+  await consumer.subscribe({ topic: getVideoOutboxTopic(), fromBeginning: true})
+  await consumer.run({
+    eachMessage: async ({ topic, partition, message }) => {
+      const value = JSON.parse(message.value)
+      if (value?.payload?.after?.payload) {
+        const payload = JSON.parse(value.payload.after.payload);
+        
+        createBill(value.payload.after.id, topic, partition, Number(message.offset), payload)
+        .then((result) => {
+          console.log(`ok`)
         })
-      },
-    })
-  }
-
-  const subscribeTopicCameraRestart = async(consumer, key) => {
-    await consumer.connect()
-    await consumer.subscribe({ topic: KAFKA_CAMERA_RESTART_TOPIC_ID, fromBeginning: true })
-    await consumer.run({
-      eachMessage: async ({ topic, partition, message }) => {
-        console.log({
-          topic,
-          partition,
-          offset: message.offset,
-          value: message.value.toString(),
+        .catch((e) => {
+          console.error(e);
         })
-      },
-    })
-  }
+      }
+    },
+  })
+}
 
-  // const subscribeTopicDeploy = async(consumer) => {
-  //   await consumer.connect()
-  //   await consumer.subscribe({ topic: KAFKA_DEPLOY_TOPIC_ID, fromBeginning: true })
-  //   await consumer.run({
-  //     eachMessage: async ({ topic, partition, message }) => {
-  //       console.log({
-  //         topic,
-  //         partition,
-  //         offset: message.offset,
-  //         value: message.value.toString(),
-  //       })
-  //     },
-  //   })
-  // }
-  
-  run().catch(console.error)
-  console.log(`Consumer listening on port ${port}`)
-})
-
-// const { Kafka } = require('kafkajs')
-
-// const kafka = new Kafka({
-//   clientId: 'my-app',
-//   brokers: ['kafka1:9092', 'kafka2:9092']
-// })
-
-// const producer = kafka.producer()
-// const consumer = kafka.consumer({ groupId: 'test-group' })
-
-// const run = async () => {
-//   // Producing
-//   await producer.connect()
-//   await producer.send({
-//     topic: 'test-topic',
-//     messages: [
-//       { value: 'Hello KafkaJS user!' },
-//     ],
-//   })
-
-//   // Consuming
-//   await consumer.connect()
-//   await consumer.subscribe({ topic: 'test-topic', fromBeginning: true })
-
-//   await consumer.run({
-//     eachMessage: async ({ topic, partition, message }) => {
-//       console.log({
-//         partition,
-//         offset: message.offset,
-//         value: message.value.toString(),
-//       })
-//     },
-//   })
-// }
-
-// run().catch(console.error)
+subscribe(ns1).then(console.log).catch(console.error)
+subscribe(ns2).then(console.log).catch(console.error)
+subscribe(ns3).then(console.log).catch(console.error)

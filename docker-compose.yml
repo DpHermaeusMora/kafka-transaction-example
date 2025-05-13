@@ -9,11 +9,11 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -21,8 +21,7 @@ services:
       KAFKA_NUM_PARTITIONS: 3
     # volumes:
     #   - kafka:/tmp/kraft-combined-logs
-    networks:
-      - local-infra
+    network_mode: host
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     restart: unless-stopped
@@ -33,16 +32,16 @@ services:
       - "8080:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: localhost:9092
       KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium
-      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kconnect:8083
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://localhost:8083
       DYNAMIC_CONFIG_ENABLED: 'true'
+      LOGGING_LEVEL_ROOT: debug
     volumes:
       - ./kafkaui/dynamic_config.yaml:/etc/kafkaui/dynamic_config.yaml
       # - ./kafkaui/uploads:/etc/kafkaui/uploads
       # - ./kafkaui:/etc/kafkaui
-    networks:
-      - local-infra
+    network_mode: host
   mysql:
     image: mysql
     restart: unless-stopped
@@ -55,10 +54,9 @@ services:
     volumes:
       # - mysql:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    networks:
-      - local-infra
+    network_mode: host
   kconnect:
-    image: debezium/connect:2.6
+    image: debezium/connect:3.0.0.Final
     restart: unless-stopped
     ports:
       - 8083:8083
@@ -66,14 +64,11 @@ services:
       CONFIG_STORAGE_TOPIC: my_connect_configs
       OFFSET_STORAGE_TOPIC: my_connect_offsets
       STATUS_STORAGE_TOPIC: my_connect_statuses
-      BOOTSTRAP_SERVERS: kafka:9092
-    links:
-      - mysql
+      BOOTSTRAP_SERVERS: localhost:9092
     depends_on:
       - kafka
       - mysql
-    networks:
-      - local-infra
+    network_mode: host
 networks:
   local-infra:
 

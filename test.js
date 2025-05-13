@@ -1,0 +1,1 @@
+console.log(Math.round((8388630 / 1024 / 1024) * 1.5))
